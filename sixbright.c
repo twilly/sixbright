@@ -88,9 +88,13 @@ int main(void){
     /* power off */
     PIN_OFF(P_PWR);
 
-    /* toggle forever (external power may be holding us up) */
+    /* show charging status (USB will hold the power on) */
     while(1){
-        PIN_TOGGLE(P_GLED);
+        if(PIN_VALUE(P_CHARGE)){
+            PIN_ON(P_GLED);
+        } else {
+            PIN_TOGGLE(P_GLED);
+        }
         _delay_ms(500);
     }
 
