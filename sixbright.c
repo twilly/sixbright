@@ -18,6 +18,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include "pins.h"
+#include "uart.h"
 
 void init(void){
     /* outputs */
@@ -29,6 +30,9 @@ void init(void){
 
     /* use our pullup for the accelerometer's open-collector output */
     PIN_ON(P_ACC_INT);
+
+    /* UART */
+    uart_init();
 }
 
 
