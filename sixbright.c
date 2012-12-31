@@ -16,6 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include <avr/io.h>
+#include <avr/pgmspace.h>
 #include <util/delay.h>
 #include "pins.h"
 #include "uart.h"
@@ -37,15 +38,8 @@ void init(void){
 
 
 int main(void){
-    int i;
 
     init();
-
-    /* blink the green LED for 10 seconds */
-    for(i = 0; i < 10; i++){
-        PIN_TOGGLE(P_GLED);
-        _delay_ms(500);
-    }
 
     /* power off */
     PIN_OFF(P_PWR);
@@ -54,8 +48,10 @@ int main(void){
     while(1){
         if(PIN_VALUE(P_CHARGE)){
             PIN_ON(P_GLED);
+            puts_P(PSTR("FULL"));
         } else {
             PIN_TOGGLE(P_GLED);
+            puts_P(PSTR("CHARGE"));
         }
         _delay_ms(500);
     }
