@@ -4,6 +4,12 @@
 #include <avr/sfr_defs.h>
 
 /*** Pins ***/
+/* RX */
+#define P_RX_PORT               D
+#define P_RX_PIN                0
+/* TX */
+#define P_TX_PORT               D
+#define P_TX_PIN                1
 /* Red LED and Switch (in/out) */
 #define P_RLED_SW_PORT          D
 #define P_RLED_SW_PIN           2

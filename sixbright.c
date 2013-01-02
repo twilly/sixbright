@@ -16,6 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
+#include <stdbool.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -40,6 +41,8 @@ enum state {
 
 /* debounced button */
 static volatile uint8_t rled_sw, rled_cnt_down, rled_cnt_up;
+/* true if USB is connected */
+static bool on_usb;
 
 
 /* interrupt when the button changes */
@@ -70,7 +73,7 @@ ISR(TIMER2_OVF_vect){
 void init(void){
     /* outputs */
     DDRB = PIN_BIT(P_PWR) | PIN_BIT(P_DRV_MODE) | PIN_BIT(P_DRV_EN);
-    DDRD = PIN_BIT(P_GLED);
+    DDRD = PIN_BIT(P_TX) | PIN_BIT(P_GLED);
 
     /* force on the voltage regulator */
     PIN_ON(P_PWR);
@@ -88,6 +91,19 @@ void init(void){
     EIMSK = _BV(INT0);
     TCCR2B = _BV(CS22) | _BV(CS21);
     rled_sw = PIN_VALUE(P_RLED_SW);
+
+    /* on_usb detection:
+     *  probe RXD for an active serial converter (idles high or floats)
+     *  probe switch as to verify
+     */
+    PIN_OFF(P_RX);
+    DDRD |=  PIN_BIT(P_RX);
+    DDRD &= ~PIN_BIT(P_RX);
+    if(PIN_VALUE(P_RX) && !rled_sw){
+        on_usb = true;
+    } else {
+        on_usb = false;
+    }
 
     /* UART */
     uart_init();
@@ -147,7 +163,7 @@ int main(void){
 
         while(last_down == rled_cnt_down){
             /* monitoring code (only run if we're on USB power) */
-            if(PIN_VALUE(P_PWR) == 0){
+            if(on_usb){
                 printf_P(PSTR("T %d\n"), raw_temp());
                 if(PIN_VALUE(P_CHARGE)){
                     PIN_ON(P_GLED);
