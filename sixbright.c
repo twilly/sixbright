@@ -70,7 +70,20 @@ ISR(TIMER2_OVF_vect){
 }
 
 
+/* sample the currently selected analog channel
+ * returns an 8 bit conversion result
+ */
+uint8_t adc_sample(void){
+    ADCSRA = ADCSR_RESET | _BV(ADSC);
+    loop_until_bit_is_set(ADCSRA, ADIF);
+
+    return ADCH;
+}
+
+
 void init(void){
+    uint8_t adc;
+
     /* outputs */
     DDRB = PIN_BIT(P_PWR) | PIN_BIT(P_DRV_MODE) | PIN_BIT(P_DRV_EN);
     DDRD = PIN_BIT(P_TX) | PIN_BIT(P_GLED);
@@ -81,29 +94,26 @@ void init(void){
     /* use our pullup for the accelerometer's open-collector output */
     PIN_ON(P_ACC_INT);
 
-    /* temperature sensor */
-    DIDR0 = PIN_BIT(P_TEMP);
-    ADMUX = _BV(REFS0) | _BV(ADLAR);
-    ADCSRA = ADCSR_RESET;
-
     /* watch the button switch with an interrupt */
     EICRA = _BV(ISC00);
     EIMSK = _BV(INT0);
     TCCR2B = _BV(CS22) | _BV(CS21);
     rled_sw = PIN_VALUE(P_RLED_SW);
 
-    /* on_usb detection:
-     *  probe RXD for an active serial converter (idles high or floats)
-     *  probe switch as to verify
-     */
-    PIN_OFF(P_RX);
-    DDRD |=  PIN_BIT(P_RX);
-    DDRD &= ~PIN_BIT(P_RX);
-    if(PIN_VALUE(P_RX) && !rled_sw){
-        on_usb = true;
-    } else {
+    /* on_usb detection: use MCP73831's shutdown status */
+    ADMUX = _BV(REFS0) | _BV(ADLAR) | _BV(MUX1) | _BV(MUX0);
+    adc = adc_sample();
+    if(adc >= 153 && adc <= 187){
+        /* Hi-Z within 10% */
         on_usb = false;
+    } else {
+        on_usb = true;
     }
+
+    /* temperature sensor */
+    DIDR0 = PIN_BIT(P_TEMP);
+    ADMUX = _BV(REFS0) | _BV(ADLAR);
+    ADCSRA = ADCSR_RESET;
 
     /* UART */
     uart_init();
@@ -113,24 +123,28 @@ void init(void){
 }
 
 
-/* read current temperature
- * returns an 8 bit ADC conversion result
- */
-uint8_t raw_temp(void){
-    ADCSRA = ADCSR_RESET | _BV(ADSC);
-    loop_until_bit_is_set(ADCSRA, ADIF);
-
-    return ADCH;
-}
-
-
 int main(void){
     enum state state;
     uint8_t last_down;
 
     init();
 
-    state = STATE_LOW;
+    /* inital state depends on who started us */
+    if(on_usb){
+        state = STATE_OFF;
+    } else {
+        /* verify a solid button press to power on */
+        _delay_ms(8);
+        if(!PIN_VALUE(P_RLED_SW)){
+            /* nope. power off */
+            state = STATE_OFF;
+        } else {
+            /* ok, let's turn on low */
+            state = STATE_LOW;
+        }
+    }
+
+    /* main loop */
     do {
         last_down = rled_cnt_down;
 
@@ -155,16 +169,25 @@ int main(void){
             break;
         case STATE_OFF:
             /* power off */
-            PIN_OFF(P_DRV_EN);
             PIN_OFF(P_PWR);
+            /* if we keep running, then we're on USB */
+            _delay_ms(250);
+            PIN_OFF(P_DRV_EN);
+            on_usb = true;
             state = STATE_LOW;
             break;
         }
 
+        /* wait for a button event */
         while(last_down == rled_cnt_down){
-            /* monitoring code (only run if we're on USB power) */
+            /* a charging battery means USB was attached */
+            if(!PIN_VALUE(P_CHARGE)){
+                on_usb = true;
+            }
+
+            /* monitoring code */
             if(on_usb){
-                printf_P(PSTR("T %d\n"), raw_temp());
+                printf_P(PSTR("T %d\n"), adc_sample());
                 if(PIN_VALUE(P_CHARGE)){
                     PIN_ON(P_GLED);
                     puts_P(PSTR("FULL"));
