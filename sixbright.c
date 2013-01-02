@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
+#include <avr/interrupt.h>
 #include <util/delay.h>
 #include "pins.h"
 #include "uart.h"
@@ -28,6 +29,43 @@
 #define OVERTEMP        85
 /* reset value for ADC Status Register */
 #define ADCSR_RESET     (_BV(ADEN) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1))
+
+/* system state machine */
+enum state {
+    STATE_LOW,
+    STATE_MED,
+    STATE_HIGH,
+    STATE_OFF
+};
+
+/* debounced button */
+static volatile uint8_t rled_sw, rled_cnt_down, rled_cnt_up;
+
+
+/* interrupt when the button changes */
+ISR(INT0_vect){
+    /* start timer 2 to capture the button in the future */
+    TIMSK2 = _BV(TOIE2);
+}
+
+
+/* timer 2 overflow */
+ISR(TIMER2_OVF_vect){
+    uint8_t new_sw;
+
+    /* ~ 8ms has passed */
+    new_sw = PIN_VALUE(P_RLED_SW);
+    if(new_sw != rled_sw){
+        rled_sw = new_sw;
+        if(rled_sw){
+            rled_cnt_down++;
+        } else {
+            rled_cnt_up++;
+        }
+    }
+    TIMSK2 = 0;
+}
+
 
 void init(void){
     /* outputs */
@@ -45,8 +83,17 @@ void init(void){
     ADMUX = _BV(REFS0) | _BV(ADLAR);
     ADCSRA = ADCSR_RESET;
 
+    /* watch the button switch with an interrupt */
+    EICRA = _BV(ISC00);
+    EIMSK = _BV(INT0);
+    TCCR2B = _BV(CS22) | _BV(CS21);
+    rled_sw = PIN_VALUE(P_RLED_SW);
+
     /* UART */
     uart_init();
+
+    /* enable interrupts */
+    sei();
 }
 
 
@@ -62,23 +109,56 @@ uint8_t raw_temp(void){
 
 
 int main(void){
+    enum state state;
+    uint8_t last_down;
+
     init();
 
-    /* power off */
-    PIN_OFF(P_PWR);
+    state = STATE_LOW;
+    do {
+        last_down = rled_cnt_down;
 
-    /* show charging status (USB will hold the power on) */
-    while(1){
-        printf_P(PSTR("T %d\n"), raw_temp());
-        if(PIN_VALUE(P_CHARGE)){
-            PIN_ON(P_GLED);
-            puts_P(PSTR("FULL"));
-        } else {
-            PIN_TOGGLE(P_GLED);
-            puts_P(PSTR("CHARGE"));
+        /* act */
+        switch(state){
+        case STATE_LOW:
+            PIN_ON(P_PWR);
+            PIN_OFF(P_DRV_MODE);
+            PIN_ON(P_DRV_EN);
+            /* shortcut to OFF until we get PWM working */
+            state = STATE_OFF;
+            break;
+        case STATE_MED:
+            PIN_OFF(P_DRV_MODE);
+            PIN_ON(P_DRV_EN);
+            state = STATE_HIGH;
+            break;
+        case STATE_HIGH:
+            PIN_OFF(P_DRV_MODE);
+            PIN_ON(P_DRV_EN);
+            state = STATE_OFF;
+            break;
+        case STATE_OFF:
+            /* power off */
+            PIN_OFF(P_DRV_EN);
+            PIN_OFF(P_PWR);
+            state = STATE_LOW;
+            break;
         }
-        _delay_ms(500);
-    }
+
+        while(last_down == rled_cnt_down){
+            /* monitoring code (only run if we're on USB power) */
+            if(PIN_VALUE(P_PWR) == 0){
+                printf_P(PSTR("T %d\n"), raw_temp());
+                if(PIN_VALUE(P_CHARGE)){
+                    PIN_ON(P_GLED);
+                    puts_P(PSTR("FULL"));
+                } else {
+                    PIN_TOGGLE(P_GLED);
+                    puts_P(PSTR("CHARGE"));
+                }
+            }
+        }
+    } while(1);
 
     return 0;
 }
