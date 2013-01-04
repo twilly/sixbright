@@ -1,6 +1,6 @@
 /* sixbright: replacement firmware for the HexBright flashlight
  *
- * Copyright (C) 2012 Tristan Willy <tristan.willy at gmail.com>
+ * Copyright (C) 2013 Tristan Willy <tristan.willy at gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
