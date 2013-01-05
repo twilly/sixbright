@@ -30,6 +30,8 @@
 #define OVERTEMP        85
 /* reset value for ADC Status Register */
 #define ADCSR_RESET     (_BV(ADEN) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1))
+/* top value for PWM (~ 150hz @ 8mhz P&F correct) */
+#define PWM_TOP         26666
 
 /* system state machine */
 enum state {
@@ -81,6 +83,30 @@ uint8_t adc_sample(void){
 }
 
 
+/* start PWM on OC1B */
+void pwm_on(uint16_t level){
+    /* clamp level and set */
+    level = level > PWM_TOP ? PWM_TOP : level;
+    OCR1B = level;
+    /* clear counter */
+    TCNT1 = 0;
+    /* clear OC1B */
+    PORTB &= ~ _BV(2);
+    /* start clocking */
+    TCCR1A = _BV(COM1B1) | _BV(WGM10);
+    TCCR1B = _BV(WGM13) | _BV(CS10);
+}
+
+
+/* stop PWM on OC1B
+ * note: OC1B's level not set
+ */
+void pwm_off(void){
+    TCCR1A = 0;
+    TCCR1B = 0;
+}
+
+
 void init(void){
     uint8_t adc;
 
@@ -118,6 +144,9 @@ void init(void){
     /* UART */
     uart_init();
 
+    /* PWM TOP value */
+    OCR1A = PWM_TOP;
+
     /* enable interrupts */
     sei();
 }
@@ -153,28 +182,29 @@ int main(void){
         case STATE_LOW:
             PIN_ON(P_PWR);
             PIN_OFF(P_DRV_MODE);
-            PIN_ON(P_DRV_EN);
-            /* shortcut to OFF until we get PWM working */
-            state = STATE_OFF;
+            pwm_on(PWM_TOP / 10);
+            state = STATE_MED;
             break;
         case STATE_MED:
             PIN_OFF(P_DRV_MODE);
+            pwm_off();
             PIN_ON(P_DRV_EN);
             state = STATE_HIGH;
             break;
         case STATE_HIGH:
-            PIN_OFF(P_DRV_MODE);
+            PIN_ON(P_DRV_MODE);
+            pwm_off();
             PIN_ON(P_DRV_EN);
             state = STATE_OFF;
             break;
         case STATE_OFF:
+            pwm_off();
+            PIN_OFF(P_DRV_EN);
+            state = STATE_LOW;
             /* power off */
             PIN_OFF(P_PWR);
             /* if we keep running, then we're on USB */
-            _delay_ms(250);
-            PIN_OFF(P_DRV_EN);
             on_usb = true;
-            state = STATE_LOW;
             break;
         }
 
