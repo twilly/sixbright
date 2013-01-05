@@ -32,6 +32,8 @@
 #define ADCSR_RESET     (_BV(ADEN) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1))
 /* top value for PWM (~ 150hz @ 8mhz P&F correct) */
 #define PWM_TOP         26666
+/* approximate ticks per second */
+#define TICKS_PER_SEC   31
 
 /* system state machine */
 enum state {
@@ -45,6 +47,8 @@ enum state {
 static volatile uint8_t rled_sw, rled_cnt_down, rled_cnt_up;
 /* true if USB is connected */
 static bool on_usb;
+/* system tick @ ~ 30.5hz (8mhz / 1024 / 256) */
+static volatile uint8_t tick;
 
 
 /* interrupt when the button changes */
@@ -54,7 +58,13 @@ ISR(INT0_vect){
 }
 
 
-/* timer 2 overflow */
+/* timer 0 overflow - system tick */
+ISR(TIMER0_OVF_vect){
+    tick++;
+}
+
+
+/* timer 2 overflow - button interrupt triggered */
 ISR(TIMER2_OVF_vect){
     uint8_t new_sw;
 
@@ -107,6 +117,15 @@ void pwm_off(void){
 }
 
 
+/* difference between two ticks */
+uint8_t tick_diff(uint8_t start, uint8_t now){
+    if(now < start){
+        return (UINT8_MAX - start) + now + 1;
+    }
+    return now - start;
+}
+
+
 void init(void){
     uint8_t adc;
 
@@ -147,6 +166,10 @@ void init(void){
     /* PWM TOP value */
     OCR1A = PWM_TOP;
 
+    /* system clock */
+    TCCR0B = _BV(CS02) | _BV(CS00);
+    TIMSK0 = _BV(TOIE0);
+
     /* enable interrupts */
     sei();
 }
@@ -154,7 +177,7 @@ void init(void){
 
 int main(void){
     enum state state;
-    uint8_t last_down;
+    uint8_t last_down, last_report;
 
     init();
 
@@ -174,6 +197,7 @@ int main(void){
     }
 
     /* main loop */
+    last_report = tick;
     do {
         last_down = rled_cnt_down;
 
@@ -216,7 +240,7 @@ int main(void){
             }
 
             /* monitoring code */
-            if(on_usb){
+            if(on_usb && tick_diff(last_report, tick) >= (TICKS_PER_SEC / 2)){
                 printf_P(PSTR("T %d\n"), adc_sample());
                 if(PIN_VALUE(P_CHARGE)){
                     PIN_ON(P_GLED);
@@ -225,6 +249,7 @@ int main(void){
                     PIN_TOGGLE(P_GLED);
                     puts_P(PSTR("CHARGE"));
                 }
+                last_report = tick;
             }
         }
     } while(1);
