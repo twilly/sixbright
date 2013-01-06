@@ -64,7 +64,7 @@ section describes the format of these messages.
 Messages are plain ASCII text. There is one message per line. The End-of-Line
 is marked by CRLF (\r\n).
 
-=== Temperture ===
+### Temperture ###
 
 Format:  'T' <SPACE> <temperature>
 Example: "T 55"
@@ -85,7 +85,7 @@ The resulting formula for converting a raw ADC value to Celcius is:
 Note: the MCP9700 is a cheap sensor usable over the range of 0C to 70C +- 4C.
 Do not expect precision temperature reports.
 
-=== Battery Status ===
+### Battery Status ###
 
 Format: 'FULL' or 'CHARGE'
 
