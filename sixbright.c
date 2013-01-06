@@ -30,6 +30,11 @@
 #define OVERTEMP        85
 /* reset value for ADC Status Register */
 #define ADCSR_RESET     (_BV(ADEN) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1))
+/* ADC MUX selection */
+#define ADC_TEMP        0
+#define ADC_LSTATUS     3
+/* reset value for the Power Reduction Register */
+#define PRR_RESET       _BV(PRSPI)
 /* top value for PWM (~ 150hz @ 8mhz P&F correct) */
 #define PWM_TOP         26666
 /* approximate ticks per second */
@@ -85,13 +90,26 @@ ISR(TIMER2_OVF_vect){
 
 
 /* sample the currently selected analog channel
+ * this function is optimized for very low frequency sampling (power saving)
  * returns an 8 bit conversion result
  */
-uint8_t adc_sample(void){
+uint8_t adc_sample(uint8_t mux){
+    uint8_t sample;
+
+    /* power up ADC */
+    PRR = PRR_RESET;
+
+    /* sample */
+    ADMUX = _BV(REFS0) | _BV(ADLAR) | mux;
     ADCSRA = ADCSR_RESET | _BV(ADSC);
     loop_until_bit_is_set(ADCSRA, ADIF);
+    sample = ADCH;
 
-    return ADCH;
+    /* shutdown ADC */
+    ADCSRA = 0;
+    PRR |= _BV(PRADC);
+
+    return sample;
 }
 
 
@@ -155,19 +173,13 @@ void init(void){
     rled_sw = PIN_VALUE(P_RLED_SW);
 
     /* on_usb detection: use MCP73831's shutdown status */
-    ADMUX = _BV(REFS0) | _BV(ADLAR) | _BV(MUX1) | _BV(MUX0);
-    adc = adc_sample();
+    adc = adc_sample(ADC_LSTATUS);
     if(adc >= 153 && adc <= 187){
         /* Hi-Z within 10% */
         on_usb = false;
     } else {
         on_usb = true;
     }
-
-    /* temperature sensor */
-    DIDR0 = PIN_BIT(P_TEMP);
-    ADMUX = _BV(REFS0) | _BV(ADLAR);
-    ADCSRA = ADCSR_RESET;
 
     /* UART */
     uart_init();
@@ -178,6 +190,11 @@ void init(void){
     /* system clock */
     TCCR0B = _BV(CS02) | _BV(CS00);
     TIMSK0 = _BV(TOIE0);
+
+    /* shut off units we're not using */
+    DIDR0 = PIN_BIT(P_TEMP);
+    PRR = PRR_RESET;
+    ACSR = _BV(ACD);
 
     /* enable interrupts */
     sei();
@@ -211,7 +228,7 @@ void light_set(enum state state){
 
 int main(void){
     enum state c_state, n_state;
-    uint8_t i, last_down, last_report, last_temp_sample;
+    uint8_t i, last_down, last_report, last_temp_sample, temperature;
 
     init();
 
@@ -232,6 +249,7 @@ int main(void){
 
     /* main loop */
     last_temp_sample = last_report = tick;
+    temperature = adc_sample(ADC_TEMP);
     do {
         last_down = rled_cnt_down;
 
@@ -265,28 +283,31 @@ int main(void){
                 on_usb = true;
             }
 
+            /* sample temperature every 5 seconds */
+            if(tick_diff(last_temp_sample, tick) >= (5 * TICKS_PER_SEC)){
+                last_temp_sample = tick;
+                temperature = adc_sample(ADC_TEMP);
+            }
+
             /* over temperature */
             if((c_state == STATE_HIGH || c_state == STATE_MED) &&
-                    tick_diff(last_temp_sample, tick) >= TICKS_PER_SEC){
-                last_temp_sample = tick;
-                if(adc_sample() > OVERTEMP){
-                    /* We're too hot! Blink at medium, go into low light, and
-                     * have have the next button press power off.
-                     */
-                    light_set(STATE_MED);
-                    for(i = 0; i < 6; i++){
-                        tick_delay(TICKS_PER_HSEC);
-                        PIN_TOGGLE(P_DRV_EN);
-                    }
-                    light_set(STATE_LOW);
-                    c_state = STATE_LOW;
-                    n_state = STATE_OFF;
+                    temperature > OVERTEMP){
+                /* We're too hot! Blink at medium, go into low light, and
+                 * have have the next button press power off.
+                 */
+                light_set(STATE_MED);
+                for(i = 0; i < 6; i++){
+                    tick_delay(TICKS_PER_HSEC);
+                    PIN_TOGGLE(P_DRV_EN);
                 }
+                light_set(STATE_LOW);
+                c_state = STATE_LOW;
+                n_state = STATE_OFF;
             }
 
             /* monitoring code */
             if(on_usb && tick_diff(last_report, tick) >= TICKS_PER_HSEC){
-                printf_P(PSTR("T %d\n"), adc_sample());
+                printf_P(PSTR("T %d\n"), temperature);
                 if(PIN_VALUE(P_CHARGE)){
                     PIN_ON(P_GLED);
                     puts_P(PSTR("FULL"));
