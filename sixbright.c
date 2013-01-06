@@ -34,6 +34,8 @@
 #define PWM_TOP         26666
 /* approximate ticks per second */
 #define TICKS_PER_SEC   31
+/* approximate ticks per half-second */
+#define TICKS_PER_HSEC  15
 
 /* system state machine */
 enum state {
@@ -273,7 +275,7 @@ int main(void){
                      */
                     light_set(STATE_MED);
                     for(i = 0; i < 6; i++){
-                        tick_delay(TICKS_PER_SEC / 2);
+                        tick_delay(TICKS_PER_HSEC);
                         PIN_TOGGLE(P_DRV_EN);
                     }
                     light_set(STATE_LOW);
@@ -283,7 +285,7 @@ int main(void){
             }
 
             /* monitoring code */
-            if(on_usb && tick_diff(last_report, tick) >= (TICKS_PER_SEC / 2)){
+            if(on_usb && tick_diff(last_report, tick) >= TICKS_PER_HSEC){
                 printf_P(PSTR("T %d\n"), adc_sample());
                 if(PIN_VALUE(P_CHARGE)){
                     PIN_ON(P_GLED);
