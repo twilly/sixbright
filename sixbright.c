@@ -279,7 +279,10 @@ int main(void){
             n_state = STATE_LOW;
             /* power off */
             PIN_OFF(P_PWR);
-            /* if we keep running, then we're on USB */
+            /* wait until the button is lifted */
+            while(PIN_VALUE(P_RLED_SW)){}
+            tick_delay(TICKS_PER_HSEC);
+            /* if we're still running, then we're USB powered */
             on_usb = true;
             break;
         }
