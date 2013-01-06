@@ -66,7 +66,8 @@ is marked by CRLF (\r\n).
 
 ### Temperture ###
 
-Format:  'T' <SPACE> <temperature>
+Format:  'T' \[SPACE\] \{temperature\}
+
 Example: "T 55"
 
 "temperature" is a positive integer from 0 to 255. It is the raw conversion
