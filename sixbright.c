@@ -150,7 +150,9 @@ uint8_t tick_diff(uint8_t start, uint8_t now){
 /* delay for count ticks */
 void tick_delay(uint8_t ticks){
     uint8_t start = tick;
-    while(tick_diff(start, tick) < ticks){}
+    while(tick_diff(start, tick) < ticks){
+        wdt_reset();
+    }
 }
 
 
@@ -280,7 +282,9 @@ int main(void){
             /* power off */
             PIN_OFF(P_PWR);
             /* wait until the button is lifted */
-            while(PIN_VALUE(P_RLED_SW)){}
+            while(PIN_VALUE(P_RLED_SW)){
+                wdt_reset();
+            }
             tick_delay(TICKS_PER_HSEC);
             /* if we're still running, then we're USB powered */
             on_usb = true;
