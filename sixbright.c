@@ -20,6 +20,7 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
+#include <avr/wdt.h>
 #include <util/delay.h>
 #include "pins.h"
 #include "uart.h"
@@ -230,6 +231,10 @@ int main(void){
     enum state c_state, n_state;
     uint8_t i, last_down, last_report, last_temp_sample, temperature;
 
+    /* enable the watchdog */
+    wdt_enable(WDTO_1S);
+
+    /* init */
     init();
 
     /* inital state depends on who started us */
@@ -246,6 +251,9 @@ int main(void){
             n_state = STATE_LOW;
         }
     }
+
+    /* reset watchdog */
+    wdt_reset();
 
     /* main loop */
     last_temp_sample = last_report = tick;
@@ -278,6 +286,9 @@ int main(void){
 
         /* wait for a button event */
         while(last_down == rled_cnt_down){
+            /* reset watchdog */
+            wdt_reset();
+
             /* a charging battery means USB was attached */
             if(!PIN_VALUE(P_CHARGE)){
                 on_usb = true;
