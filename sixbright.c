@@ -126,6 +126,13 @@ uint8_t tick_diff(uint8_t start, uint8_t now){
 }
 
 
+/* delay for count ticks */
+void tick_delay(uint8_t ticks){
+    uint8_t start = tick;
+    while(tick_diff(start, tick) < ticks){}
+}
+
+
 void init(void){
     uint8_t adc;
 
@@ -175,56 +182,73 @@ void init(void){
 }
 
 
+/* set a brightness on the light */
+void light_set(enum state state){
+    switch(state){
+    case STATE_LOW:
+        PIN_OFF(P_DRV_MODE);
+        pwm_on(PWM_TOP / 10);
+        break;
+    case STATE_MED:
+        PIN_OFF(P_DRV_MODE);
+        pwm_off();
+        PIN_ON(P_DRV_EN);
+        break;
+    case STATE_HIGH:
+        PIN_ON(P_DRV_MODE);
+        pwm_off();
+        PIN_ON(P_DRV_EN);
+        break;
+    case STATE_OFF:
+        pwm_off();
+        PIN_OFF(P_DRV_EN);
+        break;
+    }
+}
+
+
 int main(void){
-    enum state state;
-    uint8_t last_down, last_report;
+    enum state c_state, n_state;
+    uint8_t i, last_down, last_report, last_temp_sample;
 
     init();
 
     /* inital state depends on who started us */
     if(on_usb){
-        state = STATE_OFF;
+        n_state = STATE_OFF;
     } else {
         /* verify a solid button press to power on */
         _delay_ms(8);
         if(!PIN_VALUE(P_RLED_SW)){
             /* nope. power off */
-            state = STATE_OFF;
+            n_state = STATE_OFF;
         } else {
             /* ok, let's turn on low */
-            state = STATE_LOW;
+            n_state = STATE_LOW;
         }
     }
 
     /* main loop */
-    last_report = tick;
+    last_temp_sample = last_report = tick;
     do {
         last_down = rled_cnt_down;
 
-        /* act */
-        switch(state){
+        /* switch states (current state = next state) */
+        c_state = n_state;
+        light_set(c_state);
+        switch(c_state){
         case STATE_LOW:
+            n_state = STATE_MED;
             PIN_ON(P_PWR);
-            PIN_OFF(P_DRV_MODE);
-            pwm_on(PWM_TOP / 10);
-            state = STATE_MED;
             break;
         case STATE_MED:
-            PIN_OFF(P_DRV_MODE);
-            pwm_off();
-            PIN_ON(P_DRV_EN);
-            state = STATE_HIGH;
+            n_state = STATE_HIGH;
             break;
         case STATE_HIGH:
-            PIN_ON(P_DRV_MODE);
-            pwm_off();
-            PIN_ON(P_DRV_EN);
-            state = STATE_OFF;
+            n_state = STATE_OFF;
             break;
         case STATE_OFF:
-            pwm_off();
-            PIN_OFF(P_DRV_EN);
-            state = STATE_LOW;
+            n_state = STATE_LOW;
             /* power off */
             PIN_OFF(P_PWR);
             /* if we keep running, then we're on USB */
@@ -237,6 +261,25 @@ int main(void){
             /* a charging battery means USB was attached */
             if(!PIN_VALUE(P_CHARGE)){
                 on_usb = true;
+            }
+
+            /* over temperature */
+            if((c_state == STATE_HIGH || c_state == STATE_MED) &&
+                    tick_diff(last_temp_sample, tick) >= TICKS_PER_SEC){
+                last_temp_sample = tick;
+                if(adc_sample() > OVERTEMP){
+                    /* We're too hot! Blink at medium, go into low light, and
+                     * have have the next button press power off.
+                     */
+                    light_set(STATE_MED);
+                    for(i = 0; i < 6; i++){
+                        tick_delay(TICKS_PER_SEC / 2);
+                        PIN_TOGGLE(P_DRV_EN);
+                    }
+                    light_set(STATE_LOW);
+                    c_state = STATE_LOW;
+                    n_state = STATE_OFF;
+                }
             }
 
             /* monitoring code */
