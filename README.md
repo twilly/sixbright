@@ -54,3 +54,41 @@ Note: On Ubuntu, and many other Linux distributions, regular users must be a
 part of the "dialout" group in order to write to a serial port. Add your user
 to this group or run "make load" as root.
 
+
+Serial Protocol
+---------------
+
+SixBright will send periodic updates via serial when USB is attached. This
+section describes the format of these messages.
+
+Messages are plain ASCII text. There is one message per line. The End-of-Line
+is marked by CRLF (\r\n).
+
+=== Temperture ===
+
+Format:  'T' <SPACE> <temperature>
+Example: "T 55"
+
+"temperature" is a positive integer from 0 to 255. It is the raw conversion
+of an 8-bit ADC. The MCP9700's outputs a voltage of:
+
+    Vout = 10mV * C + 500mV
+
+The ADC conversion is:
+
+    ADC = Vout * 256 / 3.3V
+
+The resulting formula for converting a raw ADC value to Celcius is:
+
+    C = ((ADC * 3.3 / 256) - 0.5) / 0.01
+
+Note: the MCP9700 is a cheap sensor usable over the range of 0C to 70C +- 4C.
+Do not expect precision temperature reports.
+
+=== Battery Status ===
+
+Format: 'FULL' or 'CHARGE'
+
+SixBright will report FULL when the HexBright is charged. If it is charging,
+then it will report CHARGE.
+
