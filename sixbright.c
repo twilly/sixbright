@@ -166,6 +166,11 @@ void init(void){
     /* force on the voltage regulator */
     PIN_ON(P_PWR);
 
+    /* use pullups on AIN1, AIN2, and DIN1 pins because they're floating */
+    PIN_ON(P_DIN1);
+    PIN_ON(P_AIN1);
+    PIN_ON(P_AIN2);
+
     /* use our pullup for the accelerometer's open-collector output */
     PIN_ON(P_ACC_INT);
 

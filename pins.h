@@ -34,9 +34,12 @@
 /* Green LED (out) */
 #define P_GLED_PORT             D
 #define P_GLED_PIN              5
-/* NOT ON SCHEMATIC: PGOOD (in) */
-#define P_PGOOD_PORT            D
-#define P_PGOOD_PIN             7
+/* DIN1 */
+#define P_DIN1_PORT             D
+#define P_DIN1_PIN              6
+/* DIN2 (tied to VCC) */
+#define P_DIN2_PORT             D
+#define P_DIN2_PIN              7
 /* Power (out) */
 #define P_PWR_PORT              B
 #define P_PWR_PIN               0
@@ -49,6 +52,12 @@
 /* Temperature (in, analog) */
 #define P_TEMP_PORT             C
 #define P_TEMP_PIN              0
+/* AIN1 */
+#define P_AIN1_PORT             C
+#define P_AIN1_PIN              1
+/* AIN2 */
+#define P_AIN2_PORT             C
+#define P_AIN2_PIN              2
 /* Charge (in, mixed digital/analog) */
 #define P_CHARGE_PORT           C
 #define P_CHARGE_PIN            3
