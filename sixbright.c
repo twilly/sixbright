@@ -249,7 +249,7 @@ int main(void){
         n_state = STATE_OFF;
     } else {
         /* verify a solid button press to power on */
-        _delay_ms(8);
+        _delay_ms(2);
         if(!PIN_VALUE(P_RLED_SW)){
             /* nope. power off */
             n_state = STATE_OFF;
