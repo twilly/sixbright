@@ -300,6 +300,43 @@ enum state idle(enum state c_state, enum state n_state){
 }
 
 
+/* enter_state: switch into a new state
+ * state := state to enter
+ * returns the next state to enter
+ */
+enum state enter_state(enum state state){
+    enum state n_state;
+
+    light_set(state);
+    switch(state){
+    case STATE_LOW:
+        n_state = STATE_MED;
+        PIN_ON(P_PWR);
+        break;
+    case STATE_MED:
+        n_state = STATE_HIGH;
+        break;
+    case STATE_HIGH:
+        n_state = STATE_OFF;
+        break;
+    case STATE_OFF:
+        n_state = STATE_LOW;
+        /* power off */
+        PIN_OFF(P_PWR);
+        /* wait until the button is lifted */
+        while(PIN_VALUE(P_RLED_SW)){
+            wdt_reset();
+        }
+        tick_delay(TICKS_PER_HSEC);
+        /* if we're still running, then we're USB powered */
+        on_usb = true;
+        break;
+    }
+
+    return n_state;
+}
+
+
 int main(void){
     enum state c_state, n_state;
     uint8_t last_down;
@@ -312,58 +349,37 @@ int main(void){
 
     /* inital state depends on who started us */
     if(on_usb){
-        n_state = STATE_OFF;
+        c_state = STATE_OFF;
     } else {
         /* verify a solid button press to power on */
         _delay_ms(2);
         if(!PIN_VALUE(P_RLED_SW)){
             /* nope. power off */
-            n_state = STATE_OFF;
+            c_state = STATE_OFF;
         } else {
             /* ok, let's turn on low */
-            n_state = STATE_LOW;
+            c_state = STATE_LOW;
         }
     }
+
+    /* enter our first state */
+    n_state = enter_state(c_state);
 
     /* reset watchdog */
     wdt_reset();
 
     /* main loop */
     do {
-        /* switch states (current state = next state) */
-        c_state = n_state;
-        light_set(c_state);
-        switch(c_state){
-        case STATE_LOW:
-            n_state = STATE_MED;
-            PIN_ON(P_PWR);
-            break;
-        case STATE_MED:
-            n_state = STATE_HIGH;
-            break;
-        case STATE_HIGH:
-            n_state = STATE_OFF;
-            break;
-        case STATE_OFF:
-            n_state = STATE_LOW;
-            /* power off */
-            PIN_OFF(P_PWR);
-            /* wait until the button is lifted */
-            while(PIN_VALUE(P_RLED_SW)){
-                wdt_reset();
-            }
-            tick_delay(TICKS_PER_HSEC);
-            /* if we're still running, then we're USB powered */
-            on_usb = true;
-            break;
-        }
-
         /* wait for a button event */
         last_down = rled_cnt_down;
         while(last_down == rled_cnt_down){
             /* do idle tasks */
             n_state = idle(c_state, n_state);
         }
+
+        /* switch states (current state = next state) */
+        c_state = n_state;
+        n_state = enter_state(c_state);
     } while(1);
 
     return 0;
