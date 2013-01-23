@@ -234,9 +234,75 @@ void light_set(enum state state){
 }
 
 
+/* idle: call when the main loop is blocked
+ * c_state := current state
+ * n_state := next state
+ * returns next state which may or may not be the same as n_state
+ */
+enum state idle(enum state c_state, enum state n_state){
+    /* static and first-call initalized variables */
+    static bool initalized = false;
+    static uint8_t last_report, last_temp_sample, temperature;
+    /* per-call variables */
+    uint8_t i;
+
+    /* reset watchdog */
+    wdt_reset();
+
+    /* first run? init! */
+    if(!initalized){
+        last_temp_sample = last_report = tick;
+        temperature = adc_sample(ADC_TEMP);
+        initalized = true;
+    }
+
+    /* a charging battery means USB was attached */
+    if(!PIN_VALUE(P_CHARGE)){
+        on_usb = true;
+    }
+
+    /* sample temperature every 5 seconds */
+    if(tick_diff(last_temp_sample, tick) >= (5 * TICKS_PER_SEC)){
+        last_temp_sample = tick;
+        temperature = adc_sample(ADC_TEMP);
+    }
+
+    /* over temperature */
+    if((c_state == STATE_HIGH || c_state == STATE_MED) &&
+            temperature > OVERTEMP){
+        /* We're too hot! Blink at medium, go into low light, and
+         * have have the next button press power off.
+         */
+        light_set(STATE_MED);
+        for(i = 0; i < 6; i++){
+            tick_delay(TICKS_PER_HSEC);
+            PIN_TOGGLE(P_DRV_EN);
+        }
+        light_set(STATE_LOW);
+        c_state = STATE_LOW;
+        n_state = STATE_OFF;
+    }
+
+    /* monitoring code */
+    if(on_usb && tick_diff(last_report, tick) >= TICKS_PER_HSEC){
+        printf_P(PSTR("T %d\n"), temperature);
+        if(PIN_VALUE(P_CHARGE)){
+            PIN_ON(P_GLED);
+            puts_P(PSTR("FULL"));
+        } else {
+            PIN_TOGGLE(P_GLED);
+            puts_P(PSTR("CHARGE"));
+        }
+        last_report = tick;
+    }
+
+    return n_state;
+}
+
+
 int main(void){
     enum state c_state, n_state;
-    uint8_t i, last_down, last_report, last_temp_sample, temperature;
+    uint8_t last_down;
 
     /* enable the watchdog */
     wdt_enable(WDTO_1S);
@@ -263,11 +329,7 @@ int main(void){
     wdt_reset();
 
     /* main loop */
-    last_temp_sample = last_report = tick;
-    temperature = adc_sample(ADC_TEMP);
     do {
-        last_down = rled_cnt_down;
-
         /* switch states (current state = next state) */
         c_state = n_state;
         light_set(c_state);
@@ -297,49 +359,10 @@ int main(void){
         }
 
         /* wait for a button event */
+        last_down = rled_cnt_down;
         while(last_down == rled_cnt_down){
-            /* reset watchdog */
-            wdt_reset();
-
-            /* a charging battery means USB was attached */
-            if(!PIN_VALUE(P_CHARGE)){
-                on_usb = true;
-            }
-
-            /* sample temperature every 5 seconds */
-            if(tick_diff(last_temp_sample, tick) >= (5 * TICKS_PER_SEC)){
-                last_temp_sample = tick;
-                temperature = adc_sample(ADC_TEMP);
-            }
-
-            /* over temperature */
-            if((c_state == STATE_HIGH || c_state == STATE_MED) &&
-                    temperature > OVERTEMP){
-                /* We're too hot! Blink at medium, go into low light, and
-                 * have have the next button press power off.
-                 */
-                light_set(STATE_MED);
-                for(i = 0; i < 6; i++){
-                    tick_delay(TICKS_PER_HSEC);
-                    PIN_TOGGLE(P_DRV_EN);
-                }
-                light_set(STATE_LOW);
-                c_state = STATE_LOW;
-                n_state = STATE_OFF;
-            }
-
-            /* monitoring code */
-            if(on_usb && tick_diff(last_report, tick) >= TICKS_PER_HSEC){
-                printf_P(PSTR("T %d\n"), temperature);
-                if(PIN_VALUE(P_CHARGE)){
-                    PIN_ON(P_GLED);
-                    puts_P(PSTR("FULL"));
-                } else {
-                    PIN_TOGGLE(P_GLED);
-                    puts_P(PSTR("CHARGE"));
-                }
-                last_report = tick;
-            }
+            /* do idle tasks */
+            n_state = idle(c_state, n_state);
         }
     } while(1);
 
