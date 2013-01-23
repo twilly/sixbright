@@ -305,7 +305,7 @@ enum state idle(enum state c_state, enum state n_state){
  * returns the next state to enter
  */
 enum state enter_state(enum state state){
-    enum state n_state;
+    enum state n_state = state;
 
     light_set(state);
     switch(state){
