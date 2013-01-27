@@ -36,10 +36,6 @@
 #define PRR_RESET       _BV(PRSPI)
 /* top value for PWM (~ 150hz @ 8mhz P&F correct) */
 #define PWM_TOP         26666
-/* approximate ticks per second */
-#define TICKS_PER_SEC   31
-/* approximate ticks per half-second */
-#define TICKS_PER_HSEC  15
 /* exact ticks per second */
 #define TICKS_PER_SEC_X (F_CPU / 262144.0f)
 /* seconds -> ticks macro */
@@ -267,7 +263,7 @@ enum state idle(enum state c_state, enum state n_state){
     }
 
     /* sample temperature every 5 seconds */
-    if(tick_diff(last_temp_sample, tick) >= (5 * TICKS_PER_SEC)){
+    if(tick_diff(last_temp_sample, tick) >= TICKS(5.0)){
         last_temp_sample = tick;
         temperature = adc_sample(ADC_TEMP);
     }
@@ -280,7 +276,7 @@ enum state idle(enum state c_state, enum state n_state){
          */
         light_set(STATE_MED);
         for(i = 0; i < 6; i++){
-            tick_delay(TICKS_PER_HSEC);
+            tick_delay(TICKS(0.5));
             PIN_TOGGLE(P_DRV_EN);
         }
         light_set(STATE_LOW);
@@ -289,7 +285,7 @@ enum state idle(enum state c_state, enum state n_state){
     }
 
     /* monitoring code */
-    if(on_usb && tick_diff(last_report, tick) >= TICKS_PER_HSEC){
+    if(on_usb && tick_diff(last_report, tick) >= TICKS(0.5)){
         printf_P(PSTR("T %d\n"), temperature);
         if(PIN_VALUE(P_CHARGE)){
             PIN_ON(P_GLED);
@@ -332,7 +328,7 @@ enum state enter_state(enum state state){
         while(PIN_VALUE(P_RLED_SW)){
             wdt_reset();
         }
-        tick_delay(TICKS_PER_HSEC);
+        tick_delay(0.5);
         /* if we're still running, then we're USB powered */
         on_usb = true;
         break;
