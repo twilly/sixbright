@@ -24,11 +24,8 @@
 #include <util/delay.h>
 #include "pins.h"
 #include "uart.h"
+#include "config.h"
 
-/* raw 8-bit ADC value when the temperature is too high
- * 85 = ~ 60 deg C
- */
-#define OVERTEMP        85
 /* reset value for ADC Status Register */
 #define ADCSR_RESET     (_BV(ADEN) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1))
 /* ADC MUX selection */
@@ -269,7 +266,7 @@ enum state idle(enum state c_state, enum state n_state){
 
     /* over temperature */
     if((c_state == STATE_HIGH || c_state == STATE_MED) &&
-            temperature > OVERTEMP){
+            temperature > CONFIG_OVERTEMP){
         /* We're too hot! Blink at medium, go into low light, and
          * have have the next button press power off.
          */
