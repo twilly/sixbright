@@ -17,6 +17,7 @@
 */
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -39,6 +40,13 @@
 #define TICKS_PER_SEC   31
 /* approximate ticks per half-second */
 #define TICKS_PER_HSEC  15
+/* exact ticks per second */
+#define TICKS_PER_SEC_X (F_CPU / 262144.0f)
+/* seconds -> ticks macro */
+#define TICKS(sec)      ((unsigned)(((double)(sec)) * TICKS_PER_SEC_X + 0.5))
+/* button-down in ticks */
+#define BTN_DOWN_TICKS  TICKS(CONFIG_LONG_BUTTON_DOWN_TIME)
+
 
 /* system state machine */
 enum state {
@@ -336,7 +344,8 @@ enum state enter_state(enum state state){
 
 int main(void){
     enum state c_state, n_state;
-    uint8_t last_down;
+    uint8_t last_down, last_up, time_down;
+    bool long_button;
 
     /* enable the watchdog */
     wdt_enable(WDTO_1S);
@@ -366,17 +375,37 @@ int main(void){
     wdt_reset();
 
     /* main loop */
+    long_button = false;
     do {
-        /* wait for a button event */
+        /* wait for button-down */
         last_down = rled_cnt_down;
         while(last_down == rled_cnt_down){
             /* do idle tasks */
             n_state = idle(c_state, n_state);
         }
 
+        /* grab up-count ASAP */
+        last_up = rled_cnt_up;
+        time_down = tick;
+
         /* switch states (current state = next state) */
         c_state = n_state;
         n_state = enter_state(c_state);
+
+        /* wait for button-up with a timeout */
+        while(last_up == rled_cnt_up &&
+                tick_diff(time_down, tick) <= BTN_DOWN_TICKS){
+            /* do idle tasks */
+            n_state = idle(c_state, n_state);
+        }
+        if(last_up == rled_cnt_up){
+            /* long button press */
+            long_button = true;
+            /* for now, as a demo, long press causes the light to turn off */
+            n_state = enter_state(STATE_OFF);
+        } else {
+            long_button = false;
+        }
     } while(1);
 
     return 0;

@@ -21,7 +21,12 @@
 /* raw 8-bit ADC value when the temperature is too high
  * 85 = ~ 60 deg C
  */
-#define CONFIG_OVERTEMP             85
+#define CONFIG_OVERTEMP                     85
+
+/* number of seconds to count as a long button press
+ * maximum number of seconds is 256 / ticks per second (~ 8 seconds)
+ */
+#define CONFIG_LONG_BUTTON_DOWN_TIME        1.0f
 
 #endif /* CONFIG_H */
 
