@@ -28,5 +28,8 @@
  */
 #define CONFIG_LONG_BUTTON_DOWN_TIME        1.0f
 
+/* strobe frequency (hertz) */
+#define CONFIG_STROBE_HZ                    12
+
 #endif /* CONFIG_H */
 

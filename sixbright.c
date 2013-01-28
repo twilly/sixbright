@@ -46,10 +46,14 @@
 
 /* system state machine */
 enum state {
+    STATE_OFF,
     STATE_LOW,
     STATE_MED,
-    STATE_HIGH,
-    STATE_OFF
+    STATE_HIGH
+};
+enum modifier {
+    MOD_SOLID,
+    MOD_STROBE
 };
 
 /* debounced button */
@@ -240,10 +244,10 @@ void light_set(enum state state){
  * n_state := next state
  * returns next state which may or may not be the same as n_state
  */
-enum state idle(enum state c_state, enum state n_state){
+enum state idle(enum state c_state, enum state n_state, enum modifier mod){
     /* static and first-call initalized variables */
     static bool initalized = false;
-    static uint8_t last_report, last_temp_sample, temperature;
+    static uint8_t last_report, last_temp_sample, temperature, last_strobe;
     /* per-call variables */
     uint8_t i;
 
@@ -252,7 +256,7 @@ enum state idle(enum state c_state, enum state n_state){
 
     /* first run? init! */
     if(!initalized){
-        last_temp_sample = last_report = tick;
+        last_strobe = last_temp_sample = last_report = tick;
         temperature = adc_sample(ADC_TEMP);
         initalized = true;
     }
@@ -260,6 +264,13 @@ enum state idle(enum state c_state, enum state n_state){
     /* a charging battery means USB was attached */
     if(!PIN_VALUE(P_CHARGE)){
         on_usb = true;
+    }
+
+    /* strobe! */
+    if(c_state > STATE_LOW && mod == MOD_STROBE &&
+            tick_diff(last_strobe, tick) >= TICKS(1.0/(2*CONFIG_STROBE_HZ))){
+        PIN_TOGGLE(P_DRV_EN);
+        last_strobe = tick;
     }
 
     /* sample temperature every 5 seconds */
@@ -338,8 +349,26 @@ enum state enter_state(enum state state){
 }
 
 
+/* switch into the next modifier */
+enum modifier next_mod(enum state c_state, enum modifier c_mod){
+    switch(c_mod){
+    case MOD_SOLID:
+        c_mod = MOD_STROBE;
+        break;
+    case MOD_STROBE:
+        c_mod = MOD_SOLID;
+        /* force light back into current state */
+        light_set(c_state);
+        break;
+    }
+
+    return c_mod;
+}
+
+
 int main(void){
     enum state c_state, n_state;
+    enum modifier c_mod;
     uint8_t last_down, last_up, time_down;
     bool long_button;
 
@@ -366,6 +395,7 @@ int main(void){
 
     /* enter our first state */
     n_state = enter_state(c_state);
+    c_mod = MOD_SOLID;
 
     /* reset watchdog */
     wdt_reset();
@@ -377,7 +407,7 @@ int main(void){
         last_down = rled_cnt_down;
         while(last_down == rled_cnt_down){
             /* do idle tasks */
-            n_state = idle(c_state, n_state);
+            n_state = idle(c_state, n_state, c_mod);
         }
 
         /* grab up-count ASAP */
@@ -392,13 +422,12 @@ int main(void){
         while(last_up == rled_cnt_up &&
                 tick_diff(time_down, tick) <= BTN_DOWN_TICKS){
             /* do idle tasks */
-            n_state = idle(c_state, n_state);
+            n_state = idle(c_state, n_state, c_mod);
         }
         if(last_up == rled_cnt_up){
             /* long button press */
             long_button = true;
-            /* for now, as a demo, long press causes the light to turn off */
-            n_state = enter_state(STATE_OFF);
+            c_mod = next_mod(c_state, c_mod);
         } else {
             long_button = false;
         }
