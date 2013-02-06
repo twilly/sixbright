@@ -416,6 +416,12 @@ int main(void){
 
         /* switch states (current state = next state) */
         c_state = n_state;
+        if(c_state == STATE_OFF){
+            /* hack: reset modifier to solid when turning off
+             * this emulates battery behavior when on USB power
+             */
+            c_mod = MOD_SOLID;
+        }
         n_state = enter_state(c_state);
 
         /* wait for button-up with a timeout */
