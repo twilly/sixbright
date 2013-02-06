@@ -1,4 +1,5 @@
 .*.swp
 *.hex
 *.lst
+*.o
 tags
