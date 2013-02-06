@@ -370,7 +370,6 @@ int main(void){
     enum state c_state, n_state;
     enum modifier c_mod;
     uint8_t last_down, last_up, time_down;
-    bool long_button;
 
     /* enable the watchdog */
     wdt_enable(WDTO_1S);
@@ -378,33 +377,32 @@ int main(void){
     /* init */
     init();
 
-    /* inital state depends on who started us */
-    if(on_usb){
-        c_state = STATE_OFF;
-    } else {
-        /* verify a solid button press to power on */
-        _delay_ms(2);
-        if(!PIN_VALUE(P_RLED_SW)){
-            /* nope. power off */
-            c_state = STATE_OFF;
-        } else {
-            /* ok, let's turn on low */
-            c_state = STATE_LOW;
-        }
-    }
-
-    /* enter our first state */
-    n_state = enter_state(c_state);
-    c_mod = MOD_SOLID;
-
     /* reset watchdog */
     wdt_reset();
 
+    /* verify a solid button press to power on */
+    if(!on_usb){
+        _delay_ms(2);
+        if(!PIN_VALUE(P_RLED_SW)){
+            /* nope. power off */
+            PIN_OFF(P_PWR);
+        }
+    }
+
     /* main loop */
-    long_button = false;
+    /* abort first button-down unless we started on USB */
+    if(on_usb){
+        last_down = rled_cnt_down;
+    } else {
+        last_down = ~rled_cnt_down;
+    }
+    /* startup state is off entering low */
+    c_state = STATE_OFF;
+    n_state = STATE_LOW;
+    /* solid is default modifier */
+    c_mod = MOD_SOLID;
     do {
         /* wait for button-down */
-        last_down = rled_cnt_down;
         while(last_down == rled_cnt_down){
             /* do idle tasks */
             n_state = idle(c_state, n_state, c_mod);
@@ -413,6 +411,17 @@ int main(void){
         /* grab up-count ASAP */
         last_up = rled_cnt_up;
         time_down = tick;
+
+        /* wait for button-up with a timeout */
+        while(last_up == rled_cnt_up &&
+                tick_diff(time_down, tick) <= BTN_DOWN_TICKS){
+            /* do idle tasks */
+            n_state = idle(c_state, n_state, c_mod);
+        }
+        if(last_up == rled_cnt_up){
+            /* long button press */
+            c_mod = next_mod(c_state, c_mod);
+        }
 
         /* switch states (current state = next state) */
         c_state = n_state;
@@ -424,19 +433,13 @@ int main(void){
         }
         n_state = enter_state(c_state);
 
-        /* wait for button-up with a timeout */
-        while(last_up == rled_cnt_up &&
-                tick_diff(time_down, tick) <= BTN_DOWN_TICKS){
+        /* finish the button up */
+        while(last_up == rled_cnt_up){
             /* do idle tasks */
             n_state = idle(c_state, n_state, c_mod);
         }
-        if(last_up == rled_cnt_up){
-            /* long button press */
-            long_button = true;
-            c_mod = next_mod(c_state, c_mod);
-        } else {
-            long_button = false;
-        }
+        /* grab down count */
+        last_down = rled_cnt_down;
     } while(1);
 
     return 0;
