@@ -421,17 +421,18 @@ int main(void){
         if(last_up == rled_cnt_up){
             /* long button press */
             c_mod = next_mod(c_state, c_mod);
+        } else {
+            /* short press */
+            /* switch states (current state = next state) */
+            c_state = n_state;
+            if(c_state == STATE_OFF){
+                /* hack: reset modifier to solid when turning off
+                 * this emulates battery behavior when on USB power
+                 */
+                c_mod = MOD_SOLID;
+            }
+            n_state = enter_state(c_state);
         }
-
-        /* switch states (current state = next state) */
-        c_state = n_state;
-        if(c_state == STATE_OFF){
-            /* hack: reset modifier to solid when turning off
-             * this emulates battery behavior when on USB power
-             */
-            c_mod = MOD_SOLID;
-        }
-        n_state = enter_state(c_state);
 
         /* finish the button up */
         while(last_up == rled_cnt_up){
