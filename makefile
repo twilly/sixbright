@@ -25,7 +25,7 @@ all: $(BINS)
 sixbright.o: config.h
 
 %.o: %.c
-	$(CC) $(FLAGS) $(CFLAGS) -c $^
+	$(CC) $(FLAGS) $(CFLAGS) -c $(filter %.c,$^)
 
 %.elf: $(patsubst %.c,%.o,$(wildcard *.c))
 	$(CC) $(FLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
