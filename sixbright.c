@@ -422,8 +422,8 @@ int main(void){
             /* do idle tasks */
             n_state = idle(c_state, n_state, c_mod);
         }
-        if(last_up == rled_cnt_up){
-            /* long button press */
+        if(last_up == rled_cnt_up && c_state != STATE_OFF){
+            /* long button press when already on */
             c_mod = next_mod(c_state, c_mod);
         } else {
             /* short press */
