@@ -380,8 +380,12 @@ int main(void){
     /* reset watchdog */
     wdt_reset();
 
-    /* verify a solid button press to power on */
-    if(!on_usb){
+    /* verify a solid button press to power on
+     * if we're on USB, then turn off the power pin (USB will hold it)
+     */
+    if(on_usb){
+        PIN_OFF(P_PWR);
+    } else {
         _delay_ms(2);
         if(!PIN_VALUE(P_RLED_SW)){
             /* nope. power off */
