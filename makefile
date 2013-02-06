@@ -22,6 +22,8 @@ AVRDUDE_OPTS=-p $(MCU) -c arduino -b $(BAUDRATE) -P $(PORT)
 
 all: $(BINS)
 
+sixbright.o: config.h
+
 %.o: %.c
 	$(CC) $(FLAGS) $(CFLAGS) -c $^
 
