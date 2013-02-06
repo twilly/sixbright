@@ -26,7 +26,7 @@
 /* number of seconds to count as a long button press
  * maximum number of seconds is 256 / ticks per second (~ 8 seconds)
  */
-#define CONFIG_LONG_BUTTON_DOWN_TIME        1.0f
+#define CONFIG_LONG_BUTTON_DOWN_TIME        0.5f
 
 /* strobe frequency (hertz) */
 #define CONFIG_STROBE_HZ                    12
