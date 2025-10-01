@@ -1,8 +1,7 @@
 SixBright
 =========
 
-SixBright is replacement firmware for the
-[HexBright](http://www.hexbright.com/) flashlight.
+SixBright is replacement firmware for the HexBright flashlight.
 
 SixBright's design goals are:
 
